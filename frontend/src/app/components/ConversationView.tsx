@@ -109,8 +109,8 @@ export function ConversationView({ conversationId, onStop }: ConversationViewPro
           <p className="text-gray-500 text-center">Waiting for messages...</p>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
-              <div key={message.id} className="space-y-1">
+            {messages.map((message, index) => (
+              <div key={`${message.id}-${index}`} className="space-y-1">
                 <div className="flex items-baseline gap-2">
                   <span className={`font-medium ${getSenderColor(message.sender)}`}>
                     {getSenderLabel(message.sender)}
