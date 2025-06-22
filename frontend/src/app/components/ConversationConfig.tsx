@@ -12,10 +12,10 @@ export function ConversationConfig({ onStart, isRunning, conversationId }: Conve
   const [config, setConfig] = useState({
     ai1Provider: 'anthropic',
     ai1Model: 'claude-3-5-sonnet-20241022',
-    ai1Persona: 'You are a helpful assistant',
+    ai1Persona: '',
     ai2Provider: 'openai',
     ai2Model: 'gpt-4',
-    ai2Persona: 'You are a curious questioner',
+    ai2Persona: '',
     initialPrompt: "Let's have a conversation about technology",
     messageLimit: 10,
     messageDelay: 1000,

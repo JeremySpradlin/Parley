@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from typing import Dict, AsyncGenerator
 import asyncio
@@ -126,3 +126,59 @@ async def stream_conversation(conversation_id: str, request: Request):
             raise
     
     return EventSourceResponse(event_generator())
+
+@router.get("/{conversation_id}/download")
+async def download_conversation(conversation_id: str):
+    """Download conversation data as JSON"""
+    if conversation_id not in conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    manager = conversations[conversation_id]
+    
+    # Prepare download data
+    download_data = {
+        "conversation_id": conversation_id,
+        "status": manager.status.value,
+        "created_at": manager.created_at.isoformat(),
+        "message_count": len(manager.messages),
+        "configuration": {
+            "ai1": {
+                "provider": manager.config.ai1.provider.value,
+                "model": manager.config.ai1.model,
+                "persona": manager.config.ai1.persona
+            },
+            "ai2": {
+                "provider": manager.config.ai2.provider.value,
+                "model": manager.config.ai2.model,
+                "persona": manager.config.ai2.persona
+            },
+            "initial_prompt": manager.config.initial_prompt,
+            "message_limit": manager.config.message_limit,
+            "message_delay_ms": manager.config.message_delay_ms,
+            "max_tokens_per_response": manager.config.max_tokens_per_response
+        },
+        "messages": [
+            {
+                "id": msg.id,
+                "sender": msg.sender,
+                "content": msg.content,
+                "timestamp": msg.timestamp.isoformat(),
+                "tokens": msg.tokens
+            }
+            for msg in manager.messages
+        ],
+        "export_timestamp": datetime.utcnow().isoformat(),
+        "export_version": "1.0"
+    }
+    
+    # Create filename with timestamp
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"parley_conversation_{conversation_id[:8]}_{timestamp}.json"
+    
+    return JSONResponse(
+        content=download_data,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "application/json"
+        }
+    )

@@ -17,6 +17,11 @@ export default function Home() {
     setIsRunning(false);
   };
 
+  const handleCompleteConversation = () => {
+    setIsRunning(false);
+    // Keep conversationId so user can still see the completed conversation
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       <header className="border-b border-gray-800 p-4">
@@ -39,6 +44,7 @@ export default function Home() {
             <ConversationView 
               conversationId={conversationId}
               onStop={handleStopConversation}
+              onComplete={handleCompleteConversation}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
