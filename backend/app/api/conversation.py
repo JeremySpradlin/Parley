@@ -4,6 +4,7 @@ from sse_starlette.sse import EventSourceResponse
 from typing import Dict, AsyncGenerator
 import asyncio
 import uuid
+import io
 from datetime import datetime
 import json
 import logging
@@ -13,6 +14,7 @@ from app.models import (
     ConversationStatus, ChatMessage
 )
 from app.services.conversation_manager import ConversationManager
+from app.services.pdf_export import generate_conversation_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -182,3 +184,35 @@ async def download_conversation(conversation_id: str):
             "Content-Type": "application/json"
         }
     )
+
+@router.get("/{conversation_id}/export-pdf")
+async def export_conversation_pdf(conversation_id: str):
+    """Export conversation as formatted PDF"""
+    if conversation_id not in conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    manager = conversations[conversation_id]
+    
+    try:
+        # Generate PDF
+        pdf_bytes = generate_conversation_pdf(
+            conversation_id=conversation_id,
+            config=manager.config,
+            messages=manager.messages,
+            status=manager.status.value,
+            created_at=manager.created_at
+        )
+        
+        # Create filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"parley_conversation_{conversation_id[:8]}_{timestamp}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to generate PDF: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate PDF")

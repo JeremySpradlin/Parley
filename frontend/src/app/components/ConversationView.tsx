@@ -162,6 +162,39 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     }
   };
 
+  const handleExportPdf = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/conversation/${conversationId}/export-pdf`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Get filename from Content-Disposition header or create one
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `parley_conversation_${conversationId.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.pdf`;
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename=(.+)/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error('Failed to export PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    }
+  };
+
   const getSenderLabel = (sender: string) => {
     switch (sender) {
       case 'ai1': return 'AI 1';
@@ -210,15 +243,26 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
             </span>
             <div className="flex gap-2">
               {messages.length > 0 && (
-                <button
-                  onClick={handleDownload}
-                  className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-1 px-4 rounded transition-colors flex items-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Download
-                </button>
+                <>
+                  <button
+                    onClick={handleDownload}
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-1 px-3 rounded transition-colors flex items-center gap-1 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    JSON
+                  </button>
+                  <button
+                    onClick={handleExportPdf}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded transition-colors flex items-center gap-1 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    PDF
+                  </button>
+                </>
               )}
               {conversationStatus === 'running' && (
                 <button
