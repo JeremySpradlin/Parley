@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useApi } from '@/lib/hooks'; // Adjust path if necessary
+import { useConversation } from '../../context/ConversationContext';
 import { SentimentChart } from './SentimentChart';
 import { WordCloudComponent } from './WordCloudComponent';
 import { TopicDriftChart } from './TopicDriftChart';
@@ -44,73 +46,32 @@ interface ConversationAnalytics {
 }
 
 export function AnalyticsDashboard() {
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [selectedConversationId, setSelectedConversationId] = useState<string>('');
-  const [analytics, setAnalytics] = useState<ConversationAnalytics | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  
+  const { data: conversations, isLoading: isLoadingConversations, error: conversationsError, fetchData: fetchConversations } = useApi<ConversationSummary[]>();
+  const { data: analytics, isLoading: isLoadingAnalytics, error: analyticsError, fetchData: fetchAnalytics } = useApi<ConversationAnalytics>();
+  const { conversationId: liveConversationId } = useConversation();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-  // Fetch available conversations on mount
   useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  const fetchConversations = async () => {
-    try {
-      const response = await fetch(`${API_URL}/analytics/conversations`);
-      if (response.ok) {
-        const data = await response.json();
-        setConversations(data);
-        
-        // Auto-select the first conversation with messages
-        const firstWithMessages = data.find((conv: ConversationSummary) => conv.message_count > 0);
-        if (firstWithMessages) {
-          setSelectedConversationId(firstWithMessages.id);
-        }
-      } else {
-        setError('Failed to load conversations');
-      }
-    } catch (err) {
-      setError('Failed to connect to analytics service');
-      console.error('Error fetching conversations:', err);
+    fetchConversations('/analytics/conversations');
+  }, [fetchConversations]);
+  
+  // Set the initially selected conversation from the live context
+  useEffect(() => {
+    if (liveConversationId) {
+      setSelectedConversationId(liveConversationId);
     }
-  };
+  }, [liveConversationId]);
 
-  const fetchAnalytics = async (conversationId: string) => {
-    if (!conversationId) return;
-
-    setIsLoading(true);
-    setError(null);
-    setAnalytics(null);
-
-    try {
-      const response = await fetch(`${API_URL}/analytics/${conversationId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAnalytics(data);
-      } else if (response.status === 404) {
-        setError('Conversation not found');
-      } else if (response.status === 400) {
-        setError('Conversation has no messages to analyze');
-      } else {
-        setError('Failed to analyze conversation');
-      }
-    } catch (err) {
-      setError('Failed to load analytics data');
-      console.error('Error fetching analytics:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch analytics when conversation selection changes
   useEffect(() => {
     if (selectedConversationId) {
-      fetchAnalytics(selectedConversationId);
+      fetchAnalytics(`/analytics/${selectedConversationId}`);
     }
-  }, [selectedConversationId]);
+  }, [selectedConversationId, fetchAnalytics]);
+
+  const handleConversationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedConversationId(e.target.value);
+  };
 
   const formatResponseTime = (seconds: number) => {
     if (seconds < 60) {
@@ -130,7 +91,7 @@ export function AnalyticsDashboard() {
     if (!selectedConversationId) return;
 
     try {
-      const response = await fetch(`${API_URL}/analytics/${selectedConversationId}/export-pdf`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analytics/${selectedConversationId}/export-pdf`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -188,46 +149,28 @@ export function AnalyticsDashboard() {
         </div>
         
         <div className="mt-4">
-          <select
-            value={selectedConversationId}
-            onChange={(e) => setSelectedConversationId(e.target.value)}
-            className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-gray-200 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-          >
-            <option value="">Choose a conversation to analyze...</option>
-            {conversations.map((conv) => (
-              <option key={conv.id} value={conv.id}>
-                {conv.name} ({conv.message_count} messages) - {conv.status}
-              </option>
-            ))}
-          </select>
+          {isLoadingConversations && <p>Loading conversations...</p>}
+          {conversationsError && <p className="text-red-400">Error: {conversationsError.message}</p>}
+          {conversations && (
+            <select 
+              onChange={handleConversationChange}
+              value={selectedConversationId || ''}
+              className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 hover:bg-gray-700/70"
+            >
+              <option value="" disabled>Select a conversation to analyze</option>
+              {conversations.map(c => (
+                <option key={c.id} value={c.id}>{c.name} ({new Date(c.created_at).toLocaleString()})</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-12 border border-gray-700/50">
-          <div className="flex flex-col items-center justify-center text-center">
-            <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-400">Analyzing conversation...</p>
-          </div>
-        </div>
-      )}
+      {isLoadingAnalytics && <div className="text-center p-8">Loading analytics...</div>}
+      {analyticsError && <div className="text-center p-8 text-red-400">Error loading analytics: {analyticsError.message}</div>}
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6">
-          <div className="flex items-center gap-3 text-red-400">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <span className="font-medium">Error: {error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Dashboard */}
-      {analytics && !isLoading && (
-        <div className="space-y-6">
+      {analytics && !isLoadingAnalytics && (
+        <div className="space-y-6 animate-in fade-in duration-500">
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sentiment Chart */}
@@ -305,7 +248,7 @@ export function AnalyticsDashboard() {
       )}
 
       {/* Empty State */}
-      {!selectedConversationId && !isLoading && !error && (
+      {!selectedConversationId && !isLoadingAnalytics && !analyticsError && (
         <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-12 border border-gray-700/50">
           <div className="text-center text-gray-400">
             <div className="w-16 h-16 bg-gradient-to-r from-purple-500/20 to-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">

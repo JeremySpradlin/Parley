@@ -1,10 +1,17 @@
 import os
 from typing import List, Optional
 import logging
-from app.models import Provider
+from app.models import Provider, AIConfig, ChatMessage
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# --- Improvement: Add a check for API keys ---
+if not settings.anthropic_api_key:
+    logger.warning("ANTHROPIC_API_KEY is not set. Anthropic models will not be available.")
+if not settings.openai_api_key:
+    logger.warning("OPENAI_API_KEY is not set. OpenAI models will not be available.")
+# ---------------------------------------------
 
 async def get_ai_response(
     provider: Provider,
@@ -25,13 +32,20 @@ thoughtful, and engaging. Aim for 1-3 sentences unless the topic requires more d
     # Format conversation history with proper role perspective
     formatted_messages = _format_conversation_for_speaker(conversation_history, current_speaker)
     
+    # --- Improvement: Check for API key before making the call ---
+    if provider == Provider.ANTHROPIC and not settings.anthropic_api_key:
+        raise ValueError("Cannot use Anthropic: ANTHROPIC_API_KEY is not set.")
+    if provider == Provider.OPENAI and not settings.openai_api_key:
+        raise ValueError("Cannot use OpenAI: OPENAI_API_KEY is not set.")
+    # ---------------------------------------------------------
+
     try:
         if provider == Provider.ANTHROPIC:
             return await _get_anthropic_response(model, system_prompt, formatted_messages, max_tokens)
         elif provider == Provider.OPENAI:
             return await _get_openai_response(model, system_prompt, formatted_messages, max_tokens)
         else:
-            raise ValueError(f"Unknown provider: {provider}")
+            raise ValueError(f"Unsupported provider: {provider}")
     except Exception as e:
         logger.error(f"AI service error: {e}")
         raise
