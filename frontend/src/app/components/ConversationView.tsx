@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 
 interface Message {
   id: string;
@@ -253,7 +254,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
           <div className="flex gap-2">
             {messages.length > 0 && (
               <>
-                <a
+                <Link
                   href="/analytics"
                   className="bg-purple-600/60 hover:bg-purple-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-purple-600/50 hover:scale-105"
                 >
@@ -262,7 +263,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
                     <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
                   </svg>
                   Analytics
-                </a>
+                </Link>
                 <button
                   onClick={handleDownload}
                   className="bg-gray-600/60 hover:bg-gray-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-gray-600/50 hover:scale-105"

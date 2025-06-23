@@ -1,6 +1,7 @@
 'use client';
 
 import { AnalyticsDashboard } from '../components/analytics/AnalyticsDashboard';
+import Link from 'next/link';
 
 export default function AnalyticsPage() {
   return (
@@ -20,7 +21,7 @@ export default function AnalyticsPage() {
             <span className="text-sm text-gray-400 font-medium">Conversation Insights</span>
           </div>
           
-          <a
+          <Link
             href="/"
             className="bg-gray-600/60 hover:bg-gray-500/60 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm backdrop-blur-sm border border-gray-600/50 hover:scale-105"
           >
@@ -28,7 +29,7 @@ export default function AnalyticsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             Back to Conversations
-          </a>
+          </Link>
         </div>
       </header>
       

@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { ConversationConfig } from './components/ConversationConfig';
 import { ConversationView } from './components/ConversationView';
+import { useConversation } from './context/ConversationContext';
 
 export default function Home() {
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const { conversationId, setConversationId, isRunning, setIsRunning } = useConversation();
 
   const handleStartConversation = (id: string) => {
     setConversationId(id);
