@@ -66,19 +66,31 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     const handleMessageEvent = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        setMessages(prev => [...prev, data]);
-        setIsTyping(null); // Clear typing indicator immediately
-        
-        // Show typing indicator for next AI if conversation is still running
-        setTimeout(() => {
-          setConversationStatus(prevStatus => {
-            if (prevStatus === 'running') {
-              const nextSpeaker = data.sender === 'ai1' ? 'ai2' : 'ai1';
-              setIsTyping(nextSpeaker);
-            }
-            return prevStatus;
-          });
-        }, 100);
+        setMessages(prev => {
+          const newMessages = [...prev, data];
+          
+          // Clear typing indicator immediately
+          setIsTyping(null);
+          
+          // Check if we've reached the message limit
+          if (newMessages.length >= messageLimit && messageLimit > 0) {
+            // Don't show typing indicator if we've reached the limit
+            return newMessages;
+          }
+          
+          // Show typing indicator for next AI if conversation is still running
+          setTimeout(() => {
+            setConversationStatus(prevStatus => {
+              if (prevStatus === 'running' && newMessages.length < messageLimit) {
+                const nextSpeaker = data.sender === 'ai1' ? 'ai2' : 'ai1';
+                setIsTyping(nextSpeaker);
+              }
+              return prevStatus;
+            });
+          }, 100);
+          
+          return newMessages;
+        });
       } catch (error) {
         console.error('Failed to parse message:', error);
       }
@@ -113,10 +125,10 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     };
   }, [conversationId, onComplete, API_URL]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or typing indicator changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const handleStop = async () => {
     if (eventSourceRef.current) {
