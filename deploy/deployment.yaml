@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parley
+  labels:
+    app: parley
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: parley
+  template:
+    metadata:
+      labels:
+        app: parley
+    spec:
+      containers:
+        - name: backend
+          image: kbiregistry.azurecr.io/parley/backend:latest
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          envFrom:
+            - secretRef:
+                name: parley-secret
+            - configMapRef:
+                name: parley-config
+          ports:
+            - containerPort: 8000
+        - name: frontend
+          image: kbiregistry.azurecr.io/parley/frontend:latest
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          envFrom:
+            - secretRef:
+                name: parley-secret
+            - configMapRef:
+                name: parley-config
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: parley
+spec:
+  type: LoadBalancer
+  selector:
+    app: parley
+  ports:
+    - protocol: "TCP"
+      name: "frontend"
+      port: 80
+      targetPort: 3000
+    - protocol: "TCP"
+      name: "backend"
+      port: 8000
+      targetPort: 8000

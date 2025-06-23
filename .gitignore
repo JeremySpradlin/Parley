@@ -18,6 +18,12 @@ Thumbs.db
 venv/
 env/
 
+# Kubernetes secrets
+deploy/secret.yaml
+deploy/secrets.yaml
+*-secret.yaml
+*-secrets.yaml
+
 # Python / FastAPI
 __pycache__/
 *.pyc
