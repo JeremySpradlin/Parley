@@ -126,17 +126,65 @@ export function AnalyticsDashboard() {
       .join(', ');
   };
 
+  const handleExportPdf = async () => {
+    if (!selectedConversationId) return;
+
+    try {
+      const response = await fetch(`${API_URL}/analytics/${selectedConversationId}/export-pdf`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `parley_analytics_${selectedConversationId.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.pdf`;
+
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename=\"?([^\"]+)\"?/);
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1];
+          }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error('Failed to export analytics PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting analytics PDF:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Conversation Selector */}
       <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
-        <div className="flex items-center gap-4">
-          <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-200">Select Conversation</h2>
           </div>
-          <h2 className="text-lg font-semibold text-gray-200">Select Conversation</h2>
+          
+          {analytics && selectedConversationId && (
+            <button
+              onClick={handleExportPdf}
+              className="bg-red-600/60 hover:bg-red-500/60 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm backdrop-blur-sm border border-red-600/50 hover:scale-105"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export PDF
+            </button>
+          )}
         </div>
         
         <div className="mt-4">

@@ -1,9 +1,13 @@
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from typing import List
 import logging
+import io
+from datetime import datetime
 
 from app.models.analytics import ConversationAnalytics, ConversationSummary
 from app.services.analytics_service import AnalyticsService
+from app.services.analytics_pdf_export import generate_analytics_pdf
 from app.state import conversations
 from app.limiter import limiter
 
@@ -72,3 +76,49 @@ async def analyze_conversation(request: Request, conversation_id: str):
     except Exception as e:
         logger.error(f"Failed to analyze conversation {conversation_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to analyze conversation")
+
+@router.get("/{conversation_id}/export-pdf")
+@limiter.limit("5/minute")  # Stricter limit for PDF generation
+async def export_analytics_pdf(request: Request, conversation_id: str):
+    """Export conversation analytics as a PDF report"""
+    try:
+        if conversation_id not in conversations:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        manager = conversations[conversation_id]
+        
+        # Ensure the conversation has messages to analyze
+        if not manager.messages:
+            raise HTTPException(status_code=400, detail="Conversation has no messages to analyze")
+        
+        # Generate analytics
+        analytics = analytics_service.analyze_conversation(
+            conversation_id=conversation_id,
+            messages=manager.messages,
+            config=manager.config
+        )
+        
+        # Generate PDF
+        pdf_bytes = generate_analytics_pdf(
+            conversation_id=conversation_id,
+            analytics=analytics,
+            config=manager.config,
+            created_at=manager.created_at
+        )
+        
+        # Create filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"parley_analytics_{conversation_id[:8]}_{timestamp}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404, 400)
+        raise
+    except Exception as e:
+        logger.error(f"Failed to export analytics PDF for {conversation_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export analytics PDF")
