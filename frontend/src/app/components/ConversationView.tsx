@@ -253,6 +253,16 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
           <div className="flex gap-2">
             {messages.length > 0 && (
               <>
+                <a
+                  href="/analytics"
+                  className="bg-purple-600/60 hover:bg-purple-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-purple-600/50 hover:scale-105"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+                    <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+                  </svg>
+                  Analytics
+                </a>
                 <button
                   onClick={handleDownload}
                   className="bg-gray-600/60 hover:bg-gray-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-gray-600/50 hover:scale-105"

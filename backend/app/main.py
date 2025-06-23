@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 import asyncio
 
-from app.api import conversation, health
+from app.api import conversation, health, analytics
 from app.state import conversations
 from app.services.cleanup import cleanup_conversations_periodically
 from app.limiter import limiter
@@ -64,3 +64,4 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 # Include routers
 app.include_router(health.router, tags=["health"])
 app.include_router(conversation.router, prefix="/conversation", tags=["conversation"])
+app.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
