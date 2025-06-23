@@ -20,6 +20,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
   const [status, setStatus] = useState<string>('connecting');
   const [conversationStatus, setConversationStatus] = useState<string>('running');
   const [messageLimit, setMessageLimit] = useState<number>(10);
+  const [isTyping, setIsTyping] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -43,6 +44,17 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     fetchConversationDetails();
   }, [conversationId]);
 
+  // Reset state when conversation ID changes (new conversation starts)
+  useEffect(() => {
+    if (!conversationId) return;
+    
+    // Clear previous conversation state
+    setMessages([]);
+    setIsTyping(null);
+    setConversationStatus('running');
+    setStatus('connecting');
+  }, [conversationId]);
+
   useEffect(() => {
     if (!conversationId) return;
 
@@ -57,7 +69,22 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     eventSource.addEventListener('message', (event) => {
       try {
         const message = JSON.parse(event.data);
+        
+        // Add message first
         setMessages(prev => [...prev, message]);
+        
+        // Clear typing indicator immediately when message appears
+        setIsTyping(null);
+        
+        // Show typing indicator for next AI if conversation is still running
+        // Add small delay to let the message render first
+        setTimeout(() => {
+          if (conversationStatus === 'running') {
+            const nextSpeaker = message.sender === 'ai1' ? 'ai2' : 'ai1';
+            setIsTyping(nextSpeaker);
+          }
+        }, 100);
+        
       } catch (error) {
         console.error('Failed to parse message:', error);
       }
@@ -79,6 +106,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
   useEffect(() => {
     if (messages.length >= messageLimit && messageLimit > 0) {
       setConversationStatus('completed');
+      setIsTyping(null); // Clear typing indicator when conversation completes
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -97,6 +125,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
           const data = await response.json();
           setConversationStatus(data.status);
           if (data.status === 'completed' || data.status === 'error') {
+            setIsTyping(null); // Clear typing indicator when conversation ends
             if (eventSourceRef.current) {
               eventSourceRef.current.close();
             }
@@ -226,67 +255,76 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
   const progressPercentage = messageLimit > 0 ? (messages.length / messageLimit) * 100 : 0;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-semibold">Live Conversation</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400">
-              Connection: <span className={status === 'connected' ? 'text-green-400' : 'text-red-400'}>
-                {status}
-              </span>
-            </span>
-            <span className="text-sm text-gray-400">
-              Status: <span className={getStatusColor(conversationStatus)}>
-                {conversationStatus}
-              </span>
-            </span>
-            <div className="flex gap-2">
-              {messages.length > 0 && (
-                <>
-                  <button
-                    onClick={handleDownload}
-                    className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-1 px-3 rounded transition-colors flex items-center gap-1 text-sm"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    JSON
-                  </button>
-                  <button
-                    onClick={handleExportPdf}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded transition-colors flex items-center gap-1 text-sm"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    PDF
-                  </button>
-                </>
-              )}
-              {conversationStatus === 'running' && (
-                <button
-                  onClick={handleStop}
-                  className="bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-4 rounded transition-colors"
-                >
-                  Stop
-                </button>
-              )}
+    <div className="flex flex-col h-full bg-gradient-to-b from-gray-800/20 to-gray-900/20 rounded-2xl border border-gray-700/50 backdrop-blur-sm overflow-hidden">
+      {/* Header */}
+      <div className="bg-gray-800/60 backdrop-blur-sm border-b border-gray-700/50 p-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
             </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-100">Live Conversation</h2>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                  {status}
+                </span>
+                <span className="text-gray-400">•</span>
+                <span className={getStatusColor(conversationStatus)}>
+                  {conversationStatus}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            {messages.length > 0 && (
+              <>
+                <button
+                  onClick={handleDownload}
+                  className="bg-gray-600/60 hover:bg-gray-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-gray-600/50 hover:scale-105"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  JSON
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="bg-blue-600/60 hover:bg-blue-500/60 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 text-sm backdrop-blur-sm border border-blue-600/50 hover:scale-105"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  PDF
+                </button>
+              </>
+            )}
+            {conversationStatus === 'running' && (
+              <button
+                onClick={handleStop}
+                className="bg-red-600/60 hover:bg-red-500/60 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 backdrop-blur-sm border border-red-600/50 hover:scale-105"
+              >
+                Stop
+              </button>
+            )}
           </div>
         </div>
         
         {/* Progress Bar */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-sm text-gray-400">
-            <span>Messages: {messages.length} / {messageLimit}</span>
-            <span>{Math.round(progressPercentage)}%</span>
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span>Progress: {messages.length} / {messageLimit} messages</span>
+            <span className="font-medium">{Math.round(progressPercentage)}%</span>
           </div>
-          <div className="w-full bg-gray-700 rounded-full h-2">
+          <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden">
             <div 
-              className={`h-2 rounded-full transition-all duration-300 ${
-                conversationStatus === 'completed' ? 'bg-blue-500' : 
-                conversationStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+              className={`h-full transition-all duration-500 ease-out ${
+                conversationStatus === 'completed' ? 'bg-gradient-to-r from-blue-400 to-blue-500' : 
+                conversationStatus === 'error' ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-green-400 to-blue-500'
               }`}
               style={{ width: `${progressPercentage}%` }}
             />
@@ -294,54 +332,138 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
         </div>
       </div>
       
-      <div className="flex-1 bg-gray-800 rounded-lg p-4 overflow-y-auto">
+      {/* Messages Area */}
+      <div className="flex-1 p-6 overflow-y-auto">
         {messages.length === 0 ? (
-          <p className="text-gray-500 text-center">Waiting for messages...</p>
+          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+            <div className="w-16 h-16 bg-gray-700/30 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <p className="text-center">Waiting for the conversation to begin...</p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {messages.map((message, index) => (
-              <div key={`${message.id}-${index}`} className="space-y-1">
-                <div className="flex items-baseline gap-2">
-                  <span className={`font-medium ${getSenderColor(message.sender)}`}>
-                    {getSenderLabel(message.sender)}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(message.timestamp).toLocaleTimeString()}
-                  </span>
+          <div className="space-y-6">
+            {messages.map((message, index) => {
+              const isAI1 = message.sender === 'ai1';
+              const isSystem = message.sender === 'system';
+              
+              return (
+                <div 
+                  key={`${message.id}-${index}`} 
+                  className={`flex ${isAI1 ? 'justify-start' : isSystem ? 'justify-center' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className={`flex items-start gap-3 max-w-[80%] ${isAI1 ? '' : isSystem ? 'max-w-[60%]' : 'flex-row-reverse'}`}>
+                    {/* Avatar */}
+                    {!isSystem && (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        isAI1 ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gradient-to-r from-green-500 to-green-600'
+                      }`}>
+                        <span className="text-xs font-bold text-white">{isAI1 ? '1' : '2'}</span>
+                      </div>
+                    )}
+                    
+                    {/* Message Bubble */}
+                    <div className={`relative ${isSystem ? 'w-full' : ''}`}>
+                      {!isSystem && (
+                        <div className={`text-xs font-medium mb-1 ${isAI1 ? 'text-blue-400' : 'text-green-400'} ${isAI1 ? 'text-left' : 'text-right'}`}>
+                          {getSenderLabel(message.sender)}
+                          <span className="text-gray-500 ml-2">
+                            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className={`
+                        relative p-4 rounded-2xl shadow-lg backdrop-blur-sm border
+                        ${isSystem 
+                          ? 'bg-gray-700/40 border-gray-600/50 text-gray-300 text-center text-sm'
+                          : isAI1 
+                            ? 'bg-blue-600/20 border-blue-500/30 text-gray-100 rounded-tl-md' 
+                            : 'bg-green-600/20 border-green-500/30 text-gray-100 rounded-tr-md'
+                        }
+                        transition-all duration-200 hover:shadow-xl
+                      `}>
+                        {/* Message tail */}
+                        {!isSystem && (
+                          <div className={`absolute top-0 w-3 h-3 transform rotate-45 ${
+                            isAI1 
+                              ? 'bg-blue-600/20 border-l border-t border-blue-500/30 -left-1' 
+                              : 'bg-green-600/20 border-r border-t border-green-500/30 -right-1'
+                          }`} />
+                        )}
+                        
+                        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-gray-100 whitespace-pre-wrap">{message.content}</p>
+              );
+            })}
+            
+            {/* Typing Indicator */}
+            {isTyping && (
+              <div className={`flex ${isTyping === 'ai1' ? 'justify-start' : 'justify-end'} animate-in fade-in duration-300`}>
+                <div className={`flex items-start gap-3 max-w-[80%] ${isTyping === 'ai2' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isTyping === 'ai1' ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gradient-to-r from-green-500 to-green-600'
+                  }`}>
+                    <span className="text-xs font-bold text-white">{isTyping === 'ai1' ? '1' : '2'}</span>
+                  </div>
+                  
+                  <div className={`
+                    relative p-4 rounded-2xl backdrop-blur-sm border
+                    ${isTyping === 'ai1' 
+                      ? 'bg-blue-600/10 border-blue-500/20 rounded-tl-md' 
+                      : 'bg-green-600/10 border-green-500/20 rounded-tr-md'
+                    }
+                  `}>
+                    <div className="flex items-center gap-1">
+                      <div className={`w-2 h-2 rounded-full animate-bounce ${isTyping === 'ai1' ? 'bg-blue-400' : 'bg-green-400'}`} style={{ animationDelay: '0ms' }}></div>
+                      <div className={`w-2 h-2 rounded-full animate-bounce ${isTyping === 'ai1' ? 'bg-blue-400' : 'bg-green-400'}`} style={{ animationDelay: '150ms' }}></div>
+                      <div className={`w-2 h-2 rounded-full animate-bounce ${isTyping === 'ai1' ? 'bg-blue-400' : 'bg-green-400'}`} style={{ animationDelay: '300ms' }}></div>
+                      <span className="text-xs text-gray-400 ml-2">thinking...</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ))}
+            )}
             
             {/* Completion Message */}
             {conversationStatus === 'completed' && (
-              <div className="border-t border-gray-700 pt-4 mt-4">
-                <div className="text-center">
-                  <div className="inline-flex items-center gap-2 bg-blue-600/20 text-blue-400 px-4 py-2 rounded-lg">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="font-medium">Conversation Completed</span>
+              <div className="flex justify-center animate-in fade-in duration-500">
+                <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-xl px-6 py-4 backdrop-blur-sm">
+                  <div className="flex items-center gap-3 text-blue-400">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium">Conversation Completed</p>
+                      <p className="text-xs text-gray-400">Reached message limit ({messageLimit} messages)</p>
+                    </div>
                   </div>
-                  <p className="text-gray-400 text-sm mt-2">
-                    Reached message limit ({messageLimit} messages)
-                  </p>
                 </div>
               </div>
             )}
             
             {conversationStatus === 'error' && (
-              <div className="border-t border-gray-700 pt-4 mt-4">
-                <div className="text-center">
-                  <div className="inline-flex items-center gap-2 bg-red-600/20 text-red-400 px-4 py-2 rounded-lg">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    <span className="font-medium">Conversation Error</span>
+              <div className="flex justify-center animate-in fade-in duration-500">
+                <div className="bg-gradient-to-r from-red-600/20 to-pink-600/20 border border-red-500/30 rounded-xl px-6 py-4 backdrop-blur-sm">
+                  <div className="flex items-center gap-3 text-red-400">
+                    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium">Conversation Error</p>
+                      <p className="text-xs text-gray-400">An error occurred during the conversation</p>
+                    </div>
                   </div>
-                  <p className="text-gray-400 text-sm mt-2">
-                    An error occurred during the conversation
-                  </p>
                 </div>
               </div>
             )}
