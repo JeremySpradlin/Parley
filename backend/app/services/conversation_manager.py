@@ -21,12 +21,22 @@ class ConversationManager:
         self._pause_event = asyncio.Event()
         self._pause_event.set()  # Not paused by default
         self._stop_event = asyncio.Event()
-        self._message_queue = asyncio.Queue()
+        self._event_queue = asyncio.Queue()
         
+    async def _dispatch_event(self, event_type: str, data: dict):
+        """Dispatch an event to the queue."""
+        await self._event_queue.put({"type": event_type, "data": data})
+
+    async def _set_status(self, status: ConversationStatus):
+        """Set the conversation status and dispatch an event."""
+        if self.status != status:
+            self.status = status
+            await self._dispatch_event("status_update", {"status": self.status.value})
+
     async def run(self):
         """Run the conversation loop"""
         try:
-            self.status = ConversationStatus.RUNNING
+            await self._set_status(ConversationStatus.RUNNING)
             
             # Get first AI response to the initial prompt
             current_turn = "ai1"
@@ -59,7 +69,7 @@ class ConversationManager:
                 
             except Exception as e:
                 logger.error(f"Error getting initial AI response: {e}")
-                self.status = ConversationStatus.ERROR
+                await self._set_status(ConversationStatus.ERROR)
                 return
             
             while message_count < self.config.message_limit and not self._stop_event.is_set():
@@ -113,7 +123,7 @@ class ConversationManager:
                         
                 except Exception as e:
                     logger.error(f"Error getting AI response: {e}")
-                    self.status = ConversationStatus.ERROR
+                    await self._set_status(ConversationStatus.ERROR)
                     error_msg = ChatMessage(
                         id=str(uuid.uuid4()),
                         conversation_id=self.conversation_id,
@@ -124,38 +134,41 @@ class ConversationManager:
                     await self._add_message(error_msg)
                     break
             
-            self.status = ConversationStatus.COMPLETED
+            await self._set_status(ConversationStatus.COMPLETED)
             
         except Exception as e:
             logger.error(f"Conversation error: {e}")
-            self.status = ConversationStatus.ERROR
+            await self._set_status(ConversationStatus.ERROR)
     
     async def _add_message(self, message: ChatMessage):
-        """Add a message and notify listeners"""
+        """Add a message and dispatch it as an event"""
         self.messages.append(message)
-        await self._message_queue.put(message)
+        await self._dispatch_event("message", message.model_dump(mode="json"))
     
     
-    async def stream(self) -> AsyncGenerator[ChatMessage, None]:
-        """Stream messages as they're added"""
+    async def stream(self) -> AsyncGenerator[dict, None]:
+        """Stream events (messages, status changes) as they're added"""
         while True:
-            message = await self._message_queue.get()
-            yield message
-            if self.status in [ConversationStatus.COMPLETED, ConversationStatus.ERROR]:
+            event = await self._event_queue.get()
+            yield event
+            # Use a special 'end' event to signal stream closure
+            if event.get("type") == "status_update" and event["data"]["status"] in [
+                ConversationStatus.COMPLETED.value, ConversationStatus.ERROR.value
+            ]:
                 break
     
     async def pause(self):
         """Pause the conversation"""
         self._pause_event.clear()
-        self.status = ConversationStatus.PAUSED
+        await self._set_status(ConversationStatus.PAUSED)
     
     async def resume(self):
         """Resume the conversation"""
         self._pause_event.set()
-        self.status = ConversationStatus.RUNNING
+        await self._set_status(ConversationStatus.RUNNING)
     
     async def stop(self):
         """Stop the conversation"""
         self._stop_event.set()
         self._pause_event.set()  # Unpause to allow exit
-        self.status = ConversationStatus.COMPLETED
+        await self._set_status(ConversationStatus.COMPLETED)

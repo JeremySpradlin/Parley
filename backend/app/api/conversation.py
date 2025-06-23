@@ -15,28 +15,30 @@ from app.models import (
 )
 from app.services.conversation_manager import ConversationManager
 from app.services.pdf_export import generate_conversation_pdf
+from app.state import conversations
+from app.limiter import limiter
+from app.utils import handle_task_exception
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory storage
-conversations: Dict[str, ConversationManager] = {}
-
 @router.post("/start", response_model=ConversationResponse)
-async def start_conversation(request: ConversationStart):
+@limiter.limit("10/hour")  # Stricter limit for creating conversations
+async def start_conversation(request: Request, start_request: ConversationStart):
     """Start a new AI-to-AI conversation"""
     conversation_id = str(uuid.uuid4())
     
     try:
         manager = ConversationManager(
             conversation_id=conversation_id,
-            config=request.config
+            config=start_request.config
         )
         conversations[conversation_id] = manager
         
         # Start the conversation in the background
-        asyncio.create_task(manager.run())
+        task = asyncio.create_task(manager.run())
+        task.add_done_callback(handle_task_exception)
         
         return ConversationResponse(
             id=conversation_id,
@@ -49,7 +51,7 @@ async def start_conversation(request: ConversationStart):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{conversation_id}/pause")
-async def pause_conversation(conversation_id: str):
+async def pause_conversation(request: Request, conversation_id: str):
     """Pause a running conversation"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -60,7 +62,7 @@ async def pause_conversation(conversation_id: str):
     return {"status": "paused", "conversation_id": conversation_id}
 
 @router.post("/{conversation_id}/resume")
-async def resume_conversation(conversation_id: str):
+async def resume_conversation(request: Request, conversation_id: str):
     """Resume a paused conversation"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -71,7 +73,7 @@ async def resume_conversation(conversation_id: str):
     return {"status": "resumed", "conversation_id": conversation_id}
 
 @router.post("/{conversation_id}/stop")
-async def stop_conversation(conversation_id: str):
+async def stop_conversation(request: Request, conversation_id: str):
     """Stop a conversation"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -82,7 +84,7 @@ async def stop_conversation(conversation_id: str):
     return {"status": "stopped", "conversation_id": conversation_id}
 
 @router.get("/{conversation_id}", response_model=ConversationDetail)
-async def get_conversation(conversation_id: str):
+async def get_conversation(request: Request, conversation_id: str):
     """Get conversation details and messages"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -98,7 +100,7 @@ async def get_conversation(conversation_id: str):
     )
 
 @router.get("/{conversation_id}/stream")
-async def stream_conversation(conversation_id: str, request: Request):
+async def stream_conversation(request: Request, conversation_id: str):
     """Stream conversation messages via Server-Sent Events"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -115,12 +117,13 @@ async def stream_conversation(conversation_id: str, request: Request):
                 }
             
             # Then stream new messages
-            async for message in manager.stream():
+            async for event in manager.stream():
                 if await request.is_disconnected():
                     break
+                
                 yield {
-                    "event": "message",
-                    "data": json.dumps(message.model_dump(mode="json"))
+                    "event": event['type'],
+                    "data": json.dumps(event['data'])
                 }
                 
         except asyncio.CancelledError:
@@ -130,7 +133,7 @@ async def stream_conversation(conversation_id: str, request: Request):
     return EventSourceResponse(event_generator())
 
 @router.get("/{conversation_id}/download")
-async def download_conversation(conversation_id: str):
+async def download_conversation(request: Request, conversation_id: str):
     """Download conversation data as JSON"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -186,7 +189,7 @@ async def download_conversation(conversation_id: str):
     )
 
 @router.get("/{conversation_id}/export-pdf")
-async def export_conversation_pdf(conversation_id: str):
+async def export_conversation_pdf(request: Request, conversation_id: str):
     """Export conversation as formatted PDF"""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Conversation not found")

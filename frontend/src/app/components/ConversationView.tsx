@@ -23,125 +23,94 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  // Fetch conversation details to get configuration
   useEffect(() => {
     if (!conversationId) return;
 
-    const fetchConversationDetails = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/conversation/${conversationId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setMessageLimit(data.config.message_limit);
-          setConversationStatus(data.status);
-        }
-      } catch (error) {
-        console.error('Failed to fetch conversation details:', error);
-      }
-    };
-
-    fetchConversationDetails();
-  }, [conversationId]);
-
-  // Reset state when conversation ID changes (new conversation starts)
-  useEffect(() => {
-    if (!conversationId) return;
-    
-    // Clear previous conversation state
+    // Reset state for new conversation
     setMessages([]);
     setIsTyping(null);
     setConversationStatus('running');
     setStatus('connecting');
-  }, [conversationId]);
 
-  useEffect(() => {
-    if (!conversationId) return;
+    const fetchConversationDetails = async () => {
+      try {
+        const response = await fetch(`${API_URL}/conversation/${conversationId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setMessageLimit(data.config.message_limit);
+          setConversationStatus(data.status);
+          // Set initial messages if any
+          if (data.messages) {
+            setMessages(data.messages);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch conversation details:', error);
+        setStatus('error');
+      }
+    };
+
+    fetchConversationDetails();
 
     // Connect to SSE endpoint
-    const eventSource = new EventSource(`http://localhost:8000/conversation/${conversationId}/stream`);
+    const eventSource = new EventSource(`${API_URL}/conversation/${conversationId}/stream`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
       setStatus('connected');
     };
 
-    eventSource.addEventListener('message', (event) => {
+    const handleMessageEvent = (event: MessageEvent) => {
       try {
-        const message = JSON.parse(event.data);
-        
-        // Add message first
-        setMessages(prev => [...prev, message]);
-        
-        // Clear typing indicator immediately when message appears
-        setIsTyping(null);
+        const data = JSON.parse(event.data);
+        setMessages(prev => [...prev, data]);
+        setIsTyping(null); // Clear typing indicator immediately
         
         // Show typing indicator for next AI if conversation is still running
-        // Add small delay to let the message render first
         setTimeout(() => {
-          if (conversationStatus === 'running') {
-            const nextSpeaker = message.sender === 'ai1' ? 'ai2' : 'ai1';
-            setIsTyping(nextSpeaker);
-          }
+          setConversationStatus(prevStatus => {
+            if (prevStatus === 'running') {
+              const nextSpeaker = data.sender === 'ai1' ? 'ai2' : 'ai1';
+              setIsTyping(nextSpeaker);
+            }
+            return prevStatus;
+          });
         }, 100);
-        
       } catch (error) {
         console.error('Failed to parse message:', error);
       }
-    });
+    };
+    
+    const handleStatusUpdateEvent = (event: MessageEvent) => {
+        const data = JSON.parse(event.data);
+        setConversationStatus(data.status);
+        if (data.status === 'completed' || data.status === 'error') {
+            setIsTyping(null);
+            if (data.status === 'completed') {
+              onComplete();
+            }
+        }
+    };
+
+    eventSource.addEventListener('message', handleMessageEvent);
+    eventSource.addEventListener('status_update', handleStatusUpdateEvent);
 
     eventSource.onerror = () => {
       setStatus('error');
+      setIsTyping(null);
       eventSource.close();
     };
 
     return () => {
+      eventSource.removeEventListener('message', handleMessageEvent);
+      eventSource.removeEventListener('status_update', handleStatusUpdateEvent);
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
     };
-  }, [conversationId]);
-
-  // Check for conversation completion
-  useEffect(() => {
-    if (messages.length >= messageLimit && messageLimit > 0) {
-      setConversationStatus('completed');
-      setIsTyping(null); // Clear typing indicator when conversation completes
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-      onComplete();
-    }
-  }, [messages.length, messageLimit, onComplete]);
-
-  // Poll for conversation status updates
-  useEffect(() => {
-    if (!conversationId) return;
-
-    const pollStatus = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/conversation/${conversationId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setConversationStatus(data.status);
-          if (data.status === 'completed' || data.status === 'error') {
-            setIsTyping(null); // Clear typing indicator when conversation ends
-            if (eventSourceRef.current) {
-              eventSourceRef.current.close();
-            }
-            if (data.status === 'completed') {
-              onComplete();
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to poll conversation status:', error);
-      }
-    };
-
-    const interval = setInterval(pollStatus, 2000); // Poll every 2 seconds
-    return () => clearInterval(interval);
-  }, [conversationId, onComplete]);
+  }, [conversationId, onComplete, API_URL]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -152,15 +121,17 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-    await fetch(`http://localhost:8000/conversation/${conversationId}/stop`, {
+    await fetch(`${API_URL}/conversation/${conversationId}/stop`, {
       method: 'POST'
     });
+    setConversationStatus('completed');
+    setIsTyping(null);
     onStop();
   };
 
   const handleDownload = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/conversation/${conversationId}/download`);
+      const response = await fetch(`${API_URL}/conversation/${conversationId}/download`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -172,8 +143,8 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
         let filename = `parley_conversation_${conversationId.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
         
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename=(.+)/);
-          if (filenameMatch) {
+          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (filenameMatch && filenameMatch[1]) {
             filename = filenameMatch[1];
           }
         }
@@ -193,20 +164,19 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
 
   const handleExportPdf = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/conversation/${conversationId}/export-pdf`);
+      const response = await fetch(`${API_URL}/conversation/${conversationId}/export-pdf`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         
-        // Get filename from Content-Disposition header or create one
         const contentDisposition = response.headers.get('Content-Disposition');
         let filename = `parley_conversation_${conversationId.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.pdf`;
-        
+
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename=(.+)/);
-          if (filenameMatch) {
+          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (filenameMatch && filenameMatch[1]) {
             filename = filenameMatch[1];
           }
         }
