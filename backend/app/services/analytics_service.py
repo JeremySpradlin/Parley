@@ -6,6 +6,10 @@ from typing import List, Dict
 import nltk
 import textstat
 from textblob import TextBlob
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag, bigrams
 
 from app.models import ChatMessage, ConversationConfig
 from app.models.analytics import ConversationAnalytics, SentimentPoint, WordFrequency
@@ -20,13 +24,19 @@ class AnalyticsService:
     
     def _ensure_nltk_data(self):
         """Download required NLTK data if not present"""
-        try:
-            nltk.data.find('tokenizers/punkt')
-            nltk.data.find('corpora/stopwords')
-        except LookupError:
-            logger.info("Downloading required NLTK data...")
-            nltk.download('punkt', quiet=True)
-            nltk.download('stopwords', quiet=True)
+        packages = ['punkt', 'stopwords', 'averaged_perceptron_tagger', 'wordnet']
+        for package_id in packages:
+            try:
+                # This is a bit of a hack to find the correct path type
+                if package_id == 'punkt':
+                    nltk.data.find(f'tokenizers/{package_id}')
+                elif package_id == 'averaged_perceptron_tagger':
+                    nltk.data.find(f'taggers/{package_id}')
+                else:
+                    nltk.data.find(f'corpora/{package_id}')
+            except LookupError:
+                logger.info(f"Downloading NLTK package: {package_id}...")
+                nltk.download(package_id, quiet=True)
     
     def analyze_conversation(
         self, 
@@ -52,7 +62,7 @@ class AnalyticsService:
             
             # Separate analysis by component
             sentiment_data = self._analyze_sentiment(messages)
-            keywords = self._extract_keywords(messages)
+            key_phrases = self._extract_key_phrases(messages)
             readability = self._calculate_readability(messages)
             vocabulary_richness = self._calculate_vocabulary_richness(messages)
             message_counts = self._count_messages_by_speaker(messages)
@@ -62,7 +72,7 @@ class AnalyticsService:
             return ConversationAnalytics(
                 conversation_id=conversation_id,
                 sentiment_over_time=sentiment_data,
-                topic_keywords=keywords,
+                topic_keywords=key_phrases,
                 readability_score=readability,
                 vocabulary_richness=vocabulary_richness,
                 message_counts=message_counts,
@@ -98,37 +108,57 @@ class AnalyticsService:
         
         return sentiment_points
     
-    def _extract_keywords(self, messages: List[ChatMessage]) -> List[WordFrequency]:
-        """Extract top keywords from all messages"""
+    def _extract_key_phrases(self, messages: List[ChatMessage]) -> List[WordFrequency]:
+        """Extract top key phrases (bigrams) and words from all messages."""
         try:
-            from nltk.corpus import stopwords
-            from nltk.tokenize import word_tokenize
-            
-            # Combine all message content
             all_text = " ".join([msg.content for msg in messages if msg.sender != 'system'])
             
             # Clean and tokenize
             all_text = re.sub(r'[^\w\s]', '', all_text.lower())
             tokens = word_tokenize(all_text)
             
-            # Remove stopwords and short words
+            # Lemmatize tokens to group words like "task" and "tasks"
+            lemmatizer = WordNetLemmatizer()
+            lemmatized_tokens = [lemmatizer.lemmatize(token) for token in tokens]
+
+            # Part-of-speech tagging is crucial for finding meaningful phrases
+            tagged_tokens = pos_tag(lemmatized_tokens)
+
             stop_words = set(stopwords.words('english'))
-            filtered_tokens = [
-                word for word in tokens 
-                if word not in stop_words and len(word) > 2
+            
+            # Filter for meaningful words (nouns, adjectives)
+            def is_good_pos(pos_tag):
+                return pos_tag.startswith('NN') or pos_tag.startswith('JJ')
+
+            filtered_words = [
+                word for word, tag in tagged_tokens
+                if word not in stop_words and len(word) > 2 and is_good_pos(tag)
             ]
             
-            # Count frequency and get top 30
-            word_counts = Counter(filtered_tokens)
-            top_words = word_counts.most_common(30)
-            
+            # --- Single Keywords ---
+            word_counts = Counter(filtered_words)
+
+            # --- Key Phrases (Bigrams) ---
+            # Create two-word phrases from the meaningful words
+            phrase_counts = Counter(" ".join(phrase) for phrase in bigrams(filtered_words))
+
+            # Combine single words and phrases, giving phrases a higher weight
+            combined_counts = Counter()
+            for word, count in word_counts.items():
+                combined_counts[word] = count
+            for phrase, count in phrase_counts.items():
+                combined_counts[phrase] = count * 1.5  # Boost score for phrases
+
+            # Get the top 20 most common phrases and words
+            top_items = combined_counts.most_common(20)
+
             return [
-                WordFrequency(text=word, value=count) 
-                for word, count in top_words
+                WordFrequency(text=item, value=int(score))
+                for item, score in top_items if score > 1 # Only include items mentioned more than once
             ]
-            
+
         except Exception as e:
-            logger.error(f"Failed to extract keywords: {e}")
+            logger.error(f"Failed to extract key phrases: {e}")
             return []
     
     def _calculate_readability(self, messages: List[ChatMessage]) -> float:
