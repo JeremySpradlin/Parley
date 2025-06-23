@@ -27,7 +27,8 @@ export function ConversationConfig({ onStart, isRunning, conversationId }: Conve
   const handleStart = async () => {
     setIsStarting(true);
     try {
-      const response = await fetch('http://localhost:8000/conversation/start', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/conversation/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

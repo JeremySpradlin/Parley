@@ -8,10 +8,14 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy application code
 COPY . .
+
+# Set build-time environment variables
+ARG NEXT_PUBLIC_APP_PASSWORD
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # Build the Next.js application
 RUN npm run build
@@ -39,8 +43,9 @@ USER nextjs
 EXPOSE 3000
 
 # Set environment variables
-ENV NODE_ENV production
-ENV PORT 3000
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 # Run the application
 CMD ["node", "server.js"]

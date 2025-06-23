@@ -47,9 +47,11 @@ app = FastAPI(
 # SlowAPI should be before CORS to ensure limits are checked first,
 # but CORS must also handle preflight OPTIONS requests before they are rate-limited.
 # A common pattern is to have CORS first to handle OPTIONS requests gracefully.
+from app.config import settings
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

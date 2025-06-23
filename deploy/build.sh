@@ -13,7 +13,7 @@ docker push kbiregistry.azurecr.io/parley/backend:latest
 # Frontend
 echo "📦 Building frontend..."
 cd ../frontend
-docker build -t kbiregistry.azurecr.io/parley/frontend:latest .
+docker build --build-arg NEXT_PUBLIC_APP_PASSWORD="Gr82b@kbi!" -t kbiregistry.azurecr.io/parley/frontend:latest .
 docker push kbiregistry.azurecr.io/parley/frontend:latest
 
 echo "✅ Build complete!"
