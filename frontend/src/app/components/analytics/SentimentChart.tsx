@@ -95,8 +95,9 @@ export function SentimentChart({ data }: SentimentChartProps) {
             type="monotone"
             dataKey="ai1_polarity"
             stroke="#3B82F6"
-            strokeWidth={2}
-            dot={{ fill: '#3B82F6', r: 3 }}
+            strokeWidth={3}
+            dot={{ fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 2, r: 5 }}
+            activeDot={{ r: 7, fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 2 }}
             name="AI1 Sentiment"
             connectNulls={false}
           />
@@ -106,8 +107,9 @@ export function SentimentChart({ data }: SentimentChartProps) {
             type="monotone"
             dataKey="ai2_polarity"
             stroke="#10B981"
-            strokeWidth={2}
-            dot={{ fill: '#10B981', r: 3 }}
+            strokeWidth={3}
+            dot={{ fill: '#10B981', stroke: '#047857', strokeWidth: 2, r: 5 }}
+            activeDot={{ r: 7, fill: '#10B981', stroke: '#047857', strokeWidth: 2 }}
             name="AI2 Sentiment"
             connectNulls={false}
           />

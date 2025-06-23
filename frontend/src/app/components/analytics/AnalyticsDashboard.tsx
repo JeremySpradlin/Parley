@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { SentimentChart } from './SentimentChart';
 import { WordCloudComponent } from './WordCloudComponent';
+import { TopicDriftChart } from './TopicDriftChart';
 import { MetricsCard } from './MetricsCard';
 
 interface ConversationSummary {
@@ -24,6 +25,16 @@ interface ConversationAnalytics {
   topic_keywords: Array<{
     text: string;
     value: number;
+  }>;
+  topic_drift: Array<{
+    segment_index: number;
+    start_message: number;
+    end_message: number;
+    dominant_topics: Array<{
+      text: string;
+      value: number;
+    }>;
+    topic_shift_score: number;
   }>;
   readability_score: number;
   vocabulary_richness: number;
@@ -216,6 +227,15 @@ export function AnalyticsDashboard() {
               </h3>
               <WordCloudComponent words={analytics.topic_keywords} />
             </div>
+          </div>
+
+          {/* Topic Drift Analysis */}
+          <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
+            <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-2">
+              <span className="text-xl">🔄</span>
+              Topic Evolution Throughout Conversation
+            </h3>
+            <TopicDriftChart data={analytics.topic_drift} />
           </div>
 
           {/* Message Counts */}

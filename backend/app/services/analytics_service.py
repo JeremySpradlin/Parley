@@ -12,7 +12,7 @@ from nltk.tokenize import word_tokenize
 from nltk import pos_tag, bigrams
 
 from app.models import ChatMessage, ConversationConfig
-from app.models.analytics import ConversationAnalytics, SentimentPoint, WordFrequency
+from app.models.analytics import ConversationAnalytics, SentimentPoint, WordFrequency, TopicSegment
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ class AnalyticsService:
             # Separate analysis by component
             sentiment_data = self._analyze_sentiment(messages)
             key_phrases = self._extract_key_phrases(messages)
+            topic_drift = self._analyze_topic_drift(messages)
             readability = self._calculate_readability(messages)
             vocabulary_richness = self._calculate_vocabulary_richness(messages)
             message_counts = self._count_messages_by_speaker(messages)
@@ -73,6 +74,7 @@ class AnalyticsService:
                 conversation_id=conversation_id,
                 sentiment_over_time=sentiment_data,
                 topic_keywords=key_phrases,
+                topic_drift=topic_drift,
                 readability_score=readability,
                 vocabulary_richness=vocabulary_richness,
                 message_counts=message_counts,
@@ -159,6 +161,100 @@ class AnalyticsService:
 
         except Exception as e:
             logger.error(f"Failed to extract key phrases: {e}")
+            return []
+    
+    def _analyze_topic_drift(self, messages: List[ChatMessage]) -> List[TopicSegment]:
+        """Analyze how topics change throughout the conversation by dividing into segments"""
+        try:
+            # Filter out system messages
+            user_messages = [msg for msg in messages if msg.sender != 'system']
+            
+            if len(user_messages) < 4:  # Need at least 4 messages for meaningful segments
+                return []
+            
+            # Divide conversation into segments (aim for 3-5 segments)
+            num_segments = min(5, max(3, len(user_messages) // 3))
+            segment_size = len(user_messages) // num_segments
+            
+            segments = []
+            previous_topics = set()
+            
+            for i in range(num_segments):
+                start_idx = i * segment_size
+                end_idx = start_idx + segment_size if i < num_segments - 1 else len(user_messages)
+                
+                segment_messages = user_messages[start_idx:end_idx]
+                segment_topics = self._extract_segment_topics(segment_messages)
+                
+                # Calculate topic shift score (how much topics changed from previous segment)
+                current_topics = set(topic.text for topic in segment_topics)
+                
+                if i == 0:
+                    topic_shift_score = 0.0  # First segment has no shift
+                else:
+                    # Calculate Jaccard similarity (intersection / union)
+                    intersection = len(current_topics & previous_topics)
+                    union = len(current_topics | previous_topics)
+                    similarity = intersection / union if union > 0 else 0.0
+                    topic_shift_score = 1.0 - similarity  # Higher score = more drift
+                
+                segments.append(TopicSegment(
+                    segment_index=i,
+                    start_message=start_idx,
+                    end_message=end_idx - 1,
+                    dominant_topics=segment_topics,
+                    topic_shift_score=topic_shift_score
+                ))
+                
+                previous_topics = current_topics
+            
+            return segments
+            
+        except Exception as e:
+            logger.error(f"Failed to analyze topic drift: {e}")
+            return []
+    
+    def _extract_segment_topics(self, messages: List[ChatMessage]) -> List[WordFrequency]:
+        """Extract top topics for a segment of messages"""
+        try:
+            segment_text = " ".join([msg.content for msg in messages])
+            
+            if not segment_text.strip():
+                return []
+            
+            # Clean and tokenize
+            segment_text = re.sub(r'[^\w\s]', '', segment_text.lower())
+            tokens = word_tokenize(segment_text)
+            
+            # Lemmatize and filter
+            lemmatizer = WordNetLemmatizer()
+            lemmatized_tokens = [lemmatizer.lemmatize(token) for token in tokens]
+            tagged_tokens = pos_tag(lemmatized_tokens)
+            
+            stop_words = set(stopwords.words('english'))
+            
+            # Filter for meaningful words
+            def is_good_pos(pos_tag):
+                return pos_tag.startswith('NN') or pos_tag.startswith('JJ')
+            
+            filtered_words = [
+                word for word, tag in tagged_tokens
+                if word not in stop_words and len(word) > 2 and is_good_pos(tag)
+            ]
+            
+            # Count word frequencies
+            word_counts = Counter(filtered_words)
+            
+            # Return top 5 topics for this segment
+            top_words = word_counts.most_common(5)
+            
+            return [
+                WordFrequency(text=word, value=count)
+                for word, count in top_words if count > 0
+            ]
+            
+        except Exception as e:
+            logger.error(f"Failed to extract segment topics: {e}")
             return []
     
     def _calculate_readability(self, messages: List[ChatMessage]) -> float:
@@ -285,6 +381,7 @@ class AnalyticsService:
             conversation_id=conversation_id,
             sentiment_over_time=[],
             topic_keywords=[],
+            topic_drift=[],
             readability_score=0.0,
             vocabulary_richness=0.0,
             message_counts={},

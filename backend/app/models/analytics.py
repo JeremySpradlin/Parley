@@ -11,10 +11,18 @@ class WordFrequency(BaseModel):
     text: str
     value: int
 
+class TopicSegment(BaseModel):
+    segment_index: int
+    start_message: int
+    end_message: int
+    dominant_topics: List[WordFrequency]
+    topic_shift_score: float  # How much topics changed from previous segment
+
 class ConversationAnalytics(BaseModel):
     conversation_id: str
     sentiment_over_time: List[SentimentPoint]
     topic_keywords: List[WordFrequency]
+    topic_drift: List[TopicSegment]
     readability_score: float
     vocabulary_richness: float
     message_counts: Dict[str, int]
