@@ -95,11 +95,12 @@ export function SentimentChart({ data }: SentimentChartProps) {
             type="monotone"
             dataKey="ai1_polarity"
             stroke="#3B82F6"
-            strokeWidth={3}
-            dot={{ fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 2, r: 5 }}
-            activeDot={{ r: 7, fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 2 }}
+            strokeWidth={4}
+            strokeDasharray="0"
+            dot={{ fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 2, r: 6 }}
+            activeDot={{ r: 8, fill: '#3B82F6', stroke: '#1E40AF', strokeWidth: 3 }}
             name="AI1 Sentiment"
-            connectNulls={false}
+            connectNulls={true}
           />
           
           {/* AI2 Sentiment Polarity */}
@@ -107,11 +108,12 @@ export function SentimentChart({ data }: SentimentChartProps) {
             type="monotone"
             dataKey="ai2_polarity"
             stroke="#10B981"
-            strokeWidth={3}
-            dot={{ fill: '#10B981', stroke: '#047857', strokeWidth: 2, r: 5 }}
-            activeDot={{ r: 7, fill: '#10B981', stroke: '#047857', strokeWidth: 2 }}
+            strokeWidth={4}
+            strokeDasharray="0"
+            dot={{ fill: '#10B981', stroke: '#047857', strokeWidth: 2, r: 6 }}
+            activeDot={{ r: 8, fill: '#10B981', stroke: '#047857', strokeWidth: 3 }}
             name="AI2 Sentiment"
-            connectNulls={false}
+            connectNulls={true}
           />
         </LineChart>
       </ResponsiveContainer>

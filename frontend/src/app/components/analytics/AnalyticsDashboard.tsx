@@ -180,34 +180,6 @@ export function AnalyticsDashboard() {
       {/* Analytics Dashboard */}
       {analytics && !isLoading && (
         <div className="space-y-6">
-          {/* Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricsCard
-              title="Readability Score"
-              value={analytics.readability_score.toFixed(1)}
-              tooltip="Flesch-Kincaid Grade Level"
-              icon="📖"
-            />
-            <MetricsCard
-              title="Vocabulary Richness"
-              value={`${(analytics.vocabulary_richness * 100).toFixed(1)}%`}
-              tooltip="Type-Token Ratio (unique words / total words)"
-              icon="🎯"
-            />
-            <MetricsCard
-              title="Avg Response Time"
-              value={formatResponseTime(analytics.avg_response_time_seconds)}
-              tooltip="Average time between AI responses"
-              icon="⏱️"
-            />
-            <MetricsCard
-              title="Question Ratio"
-              value={formatQuestionRatio(analytics.question_ratio)}
-              tooltip="Percentage of messages ending with ?"
-              icon="❓"
-            />
-          </div>
-
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sentiment Chart */}
@@ -252,6 +224,34 @@ export function AnalyticsDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricsCard
+              title="Readability Score"
+              value={analytics.readability_score.toFixed(1)}
+              tooltip="Flesch-Kincaid Grade Level"
+              icon="📖"
+            />
+            <MetricsCard
+              title="Vocabulary Richness"
+              value={`${(analytics.vocabulary_richness * 100).toFixed(1)}%`}
+              tooltip="Type-Token Ratio (unique words / total words)"
+              icon="🎯"
+            />
+            <MetricsCard
+              title="Avg Response Time"
+              value={formatResponseTime(analytics.avg_response_time_seconds)}
+              tooltip="Average time between AI responses"
+              icon="⏱️"
+            />
+            <MetricsCard
+              title="Question Ratio"
+              value={formatQuestionRatio(analytics.question_ratio)}
+              tooltip="Percentage of messages ending with ?"
+              icon="❓"
+            />
           </div>
         </div>
       )}
