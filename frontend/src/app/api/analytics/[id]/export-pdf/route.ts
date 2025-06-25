@@ -8,9 +8,10 @@ export async function GET(req: Request, context: any) {
   const { id } = context.params;
   try {
     const res = await fetch(`${BACKEND_URL}/analytics/${id}/export-pdf`);
+    const data = await res.arrayBuffer();
     const resHeaders = new Headers();
     res.headers.forEach((value, key) => resHeaders.set(key, value));
-    return new NextResponse(res.body, { status: res.status, headers: resHeaders });
+    return new NextResponse(data, { status: res.status, headers: resHeaders });
   } catch (error: any) {
     return NextResponse.json({ detail: error.message || 'Proxy error' }, { status: 500 });
   }
