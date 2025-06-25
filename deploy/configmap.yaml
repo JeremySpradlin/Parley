@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: parley-config
 data:
-  NEXT_PUBLIC_API_URL: "http://20.253.94.112:8000"
+  API_URL: "http://localhost:8000"
   CORS_ORIGINS: '["http://20.253.94.112", "https://20.253.94.112", "http://localhost:3000"]'

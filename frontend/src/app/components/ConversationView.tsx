@@ -24,7 +24,6 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
     if (!conversationId) return;
@@ -37,7 +36,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
 
     const fetchConversationDetails = async () => {
       try {
-        const response = await fetch(`${API_URL}/conversation/${conversationId}`);
+        const response = await fetch(`/api/conversation/${conversationId}`);
         if (response.ok) {
           const data = await response.json();
           setMessageLimit(data.config.message_limit);
@@ -56,7 +55,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     fetchConversationDetails();
 
     // Connect to SSE endpoint
-    const eventSource = new EventSource(`${API_URL}/conversation/${conversationId}/stream`);
+    const eventSource = new EventSource(`/api/conversation/${conversationId}/stream`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
@@ -123,7 +122,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
         eventSourceRef.current.close();
       }
     };
-  }, [conversationId, onComplete, API_URL]);
+  }, [conversationId, onComplete]);
 
   // Auto-scroll to bottom when new messages arrive or typing indicator changes
   useEffect(() => {
@@ -134,7 +133,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-    await fetch(`${API_URL}/conversation/${conversationId}/stop`, {
+    await fetch(`/api/conversation/${conversationId}/stop`, {
       method: 'POST'
     });
     setConversationStatus('completed');
@@ -144,7 +143,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
 
   const handleDownload = async () => {
     try {
-      const response = await fetch(`${API_URL}/conversation/${conversationId}/download`);
+      const response = await fetch(`/api/conversation/${conversationId}/download`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -177,7 +176,7 @@ export function ConversationView({ conversationId, onStop, onComplete }: Convers
 
   const handleExportPdf = async () => {
     try {
-      const response = await fetch(`${API_URL}/conversation/${conversationId}/export-pdf`);
+      const response = await fetch(`/api/conversation/${conversationId}/export-pdf`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);

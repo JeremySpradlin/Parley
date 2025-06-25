@@ -15,7 +15,6 @@ COPY . .
 
 # Set build-time environment variables
 ARG NEXT_PUBLIC_APP_PASSWORD
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # Build the Next.js application
 RUN npm run build

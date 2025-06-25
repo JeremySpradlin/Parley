@@ -27,8 +27,7 @@ export function ConversationConfig({ onStart, isRunning, conversationId }: Conve
   const handleStart = async () => {
     setIsStarting(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/conversation/start`, {
+      const response = await fetch('/api/conversation/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -66,7 +65,7 @@ export function ConversationConfig({ onStart, isRunning, conversationId }: Conve
     if (!conversationId) return;
     
     try {
-      await fetch(`http://localhost:8000/conversation/${conversationId}/stop`, {
+      await fetch(`/api/conversation/${conversationId}/stop`, {
         method: 'POST'
       });
     } catch (error) {

@@ -53,7 +53,7 @@ export function AnalyticsDashboard() {
   const { conversationId: liveConversationId } = useConversation();
 
   useEffect(() => {
-    fetchConversations('/analytics/conversations');
+    fetchConversations('/api/analytics/conversations');
   }, [fetchConversations]);
   
   // Set the initially selected conversation from the live context
@@ -65,7 +65,7 @@ export function AnalyticsDashboard() {
 
   useEffect(() => {
     if (selectedConversationId) {
-      fetchAnalytics(`/analytics/${selectedConversationId}`);
+      fetchAnalytics(`/api/analytics/${selectedConversationId}`);
     }
   }, [selectedConversationId, fetchAnalytics]);
 
@@ -91,7 +91,7 @@ export function AnalyticsDashboard() {
     if (!selectedConversationId) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analytics/${selectedConversationId}/export-pdf`);
+      const response = await fetch(`/api/analytics/${selectedConversationId}/export-pdf`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
